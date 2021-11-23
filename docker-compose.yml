@@ -1,0 +1,74 @@
+version: '3'
+
+volumes:
+  loki_data: {}
+
+networks:
+  jsonrpc-net:
+    driver: bridge
+
+services:
+  openresty:
+    image: openresty/openresty:1.19.9.1-2-alpine
+    volumes:
+      - ./openresty/conf.d:/etc/nginx/conf.d
+      - ./openresty/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf
+    expose:
+      - "8546"
+    ports:
+      - "8546:8546"
+    networks:
+      - jsonrpc-net
+  
+  
+  
+  grafana:
+    image: grafana/grafana:8.2.5
+    expose:
+      - 3000
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=true
+      - GF_AUTH_DISABLE_LOGIN_FORM=false
+      - GF_AUTH_DISABLE_SIGNOUT_MENU=true
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+    networks:
+      - jsonrpc-net
+  
+  loki:
+    image: grafana/loki:2.4.0
+    volumes: 
+      - loki_data:/loki
+      - ./loki/loki-config.yml:/etc/loki/local-config.yaml
+    expose:
+      - "3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - jsonrpc-net
+  
+  
+  promtail:
+    image: grafana/promtail:2.4.0
+    volumes:
+      - ./promtail/promtail.yaml:/etc/promtail-config/promtail.yml
+    expose:
+      - "1514"
+    command: -config.file=/etc/promtail-config/promtail.yml
+    networks:
+      - jsonrpc-net
+  
+  syslog:
+    image: balabit/syslog-ng:3.31.2
+    volumes:
+      - ./syslog-ng/syslog-ng.conf:/etc/syslog-ng/syslog-ng.conf
+    expose:
+      - "514"
+      - "601"
+    networks:
+      - jsonrpc-net

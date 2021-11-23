@@ -1,0 +1,39 @@
+upstream @api {
+    server <ipnode1>:8545;
+    server <ipnode2>:8545 backup;
+}
+
+server {
+    server_name _;
+    listen 8546;
+
+    location ~ ^/broadcast(?<proxy_path>/.*)$ {
+        allow 172.18.0.1/32;
+        allow <whitelist-ip-address>/32;
+        deny all;
+        lua_need_request_body on;
+        set $different "0";
+        set $rpcmethod "";
+        set $req_body "";
+        content_by_lua_file '/etc/nginx/conf.d/capture.lua';
+        access_log syslog:server=syslog:514,facility=local7,tag=nginx,severity=info rpc_json;
+
+    }
+
+    location /proxy {
+        internal;
+
+        limit_except POST {
+            deny all;
+        }
+        resolver 1.1.1.1 ipv6=off;
+
+        proxy_pass http://$proxy_host$proxy_path;
+        proxy_set_header Host $proxy_host;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        access_log syslog:server=syslog:514,facility=local7,tag=nginx,severity=info rpc_json;
+
+
+    }
+
+}
